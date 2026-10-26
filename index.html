@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Crypto Break-Even Calculator</title>
+<meta name="description" content="Find the selling price where a Spot trade breaks even after fees. Runs in your browser; nothing is sent anywhere.">
+<meta name="theme-color" content="#2457c5">
+<style>
+/* Design tokens: one blue accent, neutral surfaces, 8px controls, 12px cards. */
+:root{--bg:#f4f6f9;--card:#fff;--ink:#0f172a;--mute:#5a6578;--line:#e1e5ec;--line2:#cfd5df;
+--acc:#2457c5;--acc-h:#1c47a6;--acc-bg:#eaf0fc;--acc-ink:#fff;
+--good:#0f7b45;--good-bg:#e6f4ec;--bad:#b42318;--bad-bg:#fdeceb;--neu-bg:#edf0f5;--warn:#b7791f;
+--shadow:0 1px 2px rgba(15,23,42,.05);--r:12px;--c:8px}
+@media (prefers-color-scheme:dark){:root{--bg:#0e1218;--card:#161b23;--ink:#e8ecf3;--mute:#9aa5b8;--line:#262d38;--line2:#364050;
+--acc:#6c9bff;--acc-h:#8fb1ff;--acc-bg:#1c2640;--acc-ink:#0e1218;--good:#4cd48a;--good-bg:#12291e;--bad:#ff8a80;--bad-bg:#32181a;--neu-bg:#1f2530;--warn:#e0a84a;--shadow:none}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;font-feature-settings:"tnum"}
+.wrap{max-width:1040px;margin:0 auto;padding:0 16px}
+h1{font-size:1.15rem;line-height:1.3;font-weight:650;letter-spacing:-.01em;margin:0}
+h2{font-size:1rem;line-height:1.3;font-weight:650;margin:0 0 14px}
+.top{background:var(--card);border-bottom:1px solid var(--line);padding:12px 0 14px;margin-bottom:16px}
+.top-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.sub{margin:6px 0 0;color:var(--mute);font-size:.9rem}
+.pill{display:inline-block;font-size:.75rem;font-weight:600;line-height:1;padding:5px 9px;border-radius:99px;background:var(--acc-bg);color:var(--acc);margin-right:8px;vertical-align:1px;white-space:nowrap}
+.icon-btn{display:grid;place-items:center;width:44px;height:44px;border:1px solid var(--line);border-radius:var(--c);background:var(--card);color:var(--mute);cursor:pointer}
+.icon-btn:hover{color:var(--ink);border-color:var(--line2)}
+/* layout: one column on phones, two on wide screens */
+.layout{display:grid;gap:16px;grid-template-columns:minmax(0,1fr);grid-template-areas:"in" "out"}
+.area-in{grid-area:in}.area-out{grid-area:out}.area-hist{margin-top:16px}
+.area-in,.area-out{display:flex;flex-direction:column;gap:16px;min-width:0}
+@media (min-width:880px){.layout{grid-template-columns:minmax(0,1fr) minmax(0,420px);grid-template-areas:"in out";align-items:start;gap:20px}.area-hist{margin-top:20px}
+.area-out{position:sticky;top:16px}.top{padding:16px 0}h1{font-size:1.3rem}}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px 16px;box-shadow:var(--shadow);min-width:0}
+.tabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;background:var(--neu-bg);border-radius:10px}
+.tabs button{min-height:44px;border:0;border-radius:7px;background:transparent;color:var(--mute);font:inherit;font-weight:600;cursor:pointer}
+.tabs button[aria-pressed=true]{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(15,23,42,.12)}
+/* fields */
+.field{margin:0 0 14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+label{display:block;font-size:.875rem;font-weight:600;margin:0 0 6px}
+.opt{font-weight:400;color:var(--mute);margin-left:4px;font-size:.8rem}
+input,select{width:100%;min-height:48px;padding:10px 12px;border:1px solid var(--line2);border-radius:var(--c);background:var(--card);color:var(--ink);font:inherit;appearance:none;-webkit-appearance:none}
+select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none' stroke='%235a6578' stroke-width='1.8'%3E%3Cpath d='m1 1 5 5 5-5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:34px}
+input::placeholder{color:#8a94a6}
+input:hover,select:hover{border-color:var(--mute)}
+input:focus-visible,select:focus-visible,button:focus-visible,summary:focus-visible{outline:3px solid var(--acc);outline-offset:2px;border-color:var(--acc)}
+.inp{position:relative}.inp input{padding-right:64px}
+.sfx{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:.8rem;color:var(--mute);pointer-events:none;max-width:52px;overflow:hidden;text-overflow:ellipsis}
+.help{margin:6px 0 0;font-size:.8rem;line-height:1.45;color:var(--mute)}.help.flush{margin:0 0 14px}
+.muted{font-size:.8rem;color:var(--mute)}
+.adv summary,.how summary{cursor:pointer;font-weight:600;min-height:44px;display:flex;align-items:center;gap:8px;list-style:none}
+.adv summary::-webkit-details-marker,.how summary::-webkit-details-marker{display:none}
+.adv summary::before,.how summary::before{content:"";width:7px;height:7px;border-right:2px solid var(--mute);border-bottom:2px solid var(--mute);transform:rotate(-45deg);transition:transform .15s}
+.adv[open] summary::before,.how[open] summary::before{transform:rotate(45deg)}
+.adv{border-top:1px solid var(--line);margin-top:2px}.adv>div{padding-top:6px}
+.how{padding-top:6px;padding-bottom:6px}.how p,.how li{font-size:.875rem;color:var(--mute)}.how li{margin-bottom:6px}.how ul{padding-left:18px;margin:8px 0}
+.how strong{color:var(--ink)}
+.formula{background:var(--bg);border:1px solid var(--line);border-radius:var(--c);padding:10px 12px;color:var(--ink)!important;font-weight:500}
+[data-mode=estimate] .b-only,[data-mode=actual] .a-only{display:none}
+[hidden]{display:none!important}
+/* buttons */
+.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:4px}
+.btn{min-height:48px;padding:0 18px;border-radius:var(--c);border:1px solid var(--line2);background:var(--card);color:var(--ink);font:inherit;font-weight:600;cursor:pointer;transition:background .12s,border-color .12s}
+.btn:hover{border-color:var(--mute)}.btn:active{background:var(--neu-bg)}
+.btn.pri{background:var(--acc);border-color:var(--acc);color:var(--acc-ink)}.btn.pri:hover{background:var(--acc-h);border-color:var(--acc-h)}
+.btn.danger{color:var(--bad)}.btn.dng{background:var(--bad);border-color:var(--bad);color:#fff}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.actions .btn{flex:1 1 140px}
+/* results */
+.res-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:14px}.res-head h2{margin:0}
+.chip{font-size:.75rem;font-weight:600;padding:4px 9px;border-radius:99px;background:var(--neu-bg);color:var(--mute)}
+.hero{padding:16px;border-radius:10px;background:var(--acc-bg);margin-bottom:6px}
+.hero .lbl{font-size:.85rem;font-weight:600;color:var(--mute)}
+.big{font-size:2rem;line-height:1.15;font-weight:700;letter-spacing:-.02em;margin:4px 0 8px;overflow-wrap:anywhere}
+.big span{font-size:.95rem;font-weight:600;color:var(--mute);letter-spacing:0;margin-left:4px}
+.hero .note{font-size:.82rem;color:var(--mute);margin-top:8px}
+.state{display:inline-block;font-size:.8rem;font-weight:650;padding:5px 10px;border-radius:99px;background:var(--neu-bg);color:var(--mute)}
+.state.above{background:var(--good-bg);color:var(--good)}.state.below{background:var(--bad-bg);color:var(--bad)}.state.at{background:var(--neu-bg);color:var(--ink)}
+.rows{margin:0}
+.row{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:12px 2px;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:0}
+.row dt{font-size:.9rem;color:var(--mute);min-width:0}.row dt small{display:block;font-size:.78rem}
+.row dd{margin:0;font-weight:650;text-align:right;white-space:nowrap}
+.row dd small{font-weight:500;color:var(--mute);margin-left:3px}
+.row.above dd{color:var(--good)}.row.below dd{color:var(--bad)}
+.msg{border-radius:var(--c);padding:10px 12px;margin:0 0 12px;font-size:.88rem;background:var(--neu-bg);border-left:3px solid var(--line2)}
+.msg.err{background:var(--bad-bg);border-left-color:var(--bad)}.msg.warn{border-left-color:var(--warn)}
+.msg ul{margin:0;padding-left:18px}
+.res .actions{margin-top:12px}
+.empty{margin:0 0 12px;padding:18px 14px;text-align:center;font-size:.9rem;color:var(--mute);background:var(--bg);border:1px dashed var(--line2);border-radius:10px}
+/* history */
+.hist{list-style:none;margin:0 0 6px;padding:0}
+.h-item{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.h-main{min-width:0;font-size:.85rem;color:var(--mute)}.h-main strong{display:block;color:var(--ink);font-size:.95rem}
+.h-res{display:flex;align-items:center;gap:10px;text-align:right;font-weight:650;font-size:.9rem}.h-res small{display:block;font-weight:500;color:var(--mute)}
+.h-res .x{min-height:44px;min-width:44px;border:0;background:transparent;color:var(--mute);border-radius:var(--c);font:inherit;font-size:.8rem;cursor:pointer}.h-res .x:hover{color:var(--bad);background:var(--bad-bg)}
+.good{color:var(--good)}.bad{color:var(--bad)}
+.foot{color:var(--mute);font-size:.78rem;text-align:center;padding:20px 16px 88px}
+/* mobile dock */
+.dock{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));background:var(--card);border-top:1px solid var(--line2);box-shadow:0 -4px 16px rgba(15,23,42,.08);cursor:pointer;z-index:5}
+.dock-l{display:block;font-size:.75rem;color:var(--mute)}.dock strong{font-size:1.1rem}.dock .pill{margin:0}
+@media (min-width:880px){.dock{display:none!important}.foot{padding-bottom:28px}}
+dialog{border:1px solid var(--line);border-radius:var(--r);padding:20px;max-width:min(380px,calc(100vw - 32px));background:var(--card);color:var(--ink);box-shadow:0 12px 40px rgba(15,23,42,.25)}
+dialog::backdrop{background:rgba(15,23,42,.45)}dialog h2{margin-bottom:8px}dialog p{margin:0 0 16px;color:var(--mute);font-size:.9rem}
+@media (max-width:359px){.grid2{grid-template-columns:1fr}.big{font-size:1.75rem}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+
+:root{padding-top:env(safe-area-inset-top,0px)}
+</style>
+</head>
+<body data-mode="estimate">
+<header class="top"><div class="wrap">
+  <div class="top-row">
+    <h1>Crypto Break-Even Calculator</h1>
+    <button type="button" id="settingsBtn" class="icon-btn" aria-label="Fee settings">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
+    </button>
+  </div>
+  <p class="sub"><span class="pill">Spot trading</span>Find the sell price that covers your buy cost and fees.</p>
+</div></header>
+
+<main class="wrap">
+<div class="layout">
+<div class="area-in">
+  <div class="tabs" role="group" aria-label="Calculation mode">
+    <button type="button" id="modeA" aria-pressed="true">Plan a trade</button>
+    <button type="button" id="modeB" aria-pressed="false">Finished trade</button>
+  </div>
+
+  <section class="panel" aria-labelledby="h-trade">
+    <h2 id="h-trade">Trade details</h2>
+    <div class="grid2">
+      <div class="field"><label for="base">Asset</label><input id="base" value="BTC" autocomplete="off" autocapitalize="characters"></div>
+      <div class="field"><label for="quote">Quote currency</label><input id="quote" value="USDT" autocomplete="off" autocapitalize="characters"></div>
+    </div>
+    <div class="a-only">
+      <div class="field"><label for="pb">Buy price</label><div class="inp"><input id="pb" inputmode="decimal" placeholder="60000"><span class="sfx q-unit">USDT</span></div></div>
+      <div class="field"><label for="qty">Quantity bought</label><div class="inp"><input id="qty" inputmode="decimal" placeholder="0.01"><span class="sfx b-unit">BTC</span></div>
+        <p class="help">The amount you order, before any fee taken in coins.</p></div>
+    </div>
+    <div class="b-only">
+      <div class="field"><label for="spent">Quote spent buying</label><div class="inp"><input id="spent" inputmode="decimal" placeholder="Total spent on the order"><span class="sfx q-unit">USDT</span></div>
+        <p class="help">Include the fee if it was charged in this currency.</p></div>
+      <div class="field"><label for="recv">Quantity received</label><div class="inp"><input id="recv" inputmode="decimal" placeholder="Coins you actually got"><span class="sfx b-unit">BTC</span></div>
+        <p class="help">After any fee taken in coins.</p></div>
+      <div class="grid2">
+        <div class="field"><label for="sold">Quantity sold</label><div class="inp"><input id="sold" inputmode="decimal" placeholder="Blank = all"><span class="sfx b-unit">BTC</span></div></div>
+        <div class="field"><label for="proceeds">Sell proceeds</label><div class="inp"><input id="proceeds" inputmode="decimal" placeholder="Received"><span class="sfx q-unit">USDT</span></div></div>
+      </div>
+      <p class="help flush">Proceeds are what reached your wallet after the sell fee. Leave blank if you have not sold yet.</p>
+    </div>
+    <div class="field"><label for="extra">Additional costs <span class="opt">optional</span></label><div class="inp"><input id="extra" inputmode="decimal" placeholder="0"><span class="sfx q-unit">USDT</span></div>
+      <p class="help">Conversion or other charges, in quote currency.</p></div>
+  </section>
+
+  <section class="panel" aria-labelledby="h-fees">
+    <h2 id="h-fees">Trading fees</h2>
+    <p class="help flush">Starting values are editable assumptions, not Binance's current fees. Check your own fee tier. Saved on this device.</p>
+    <div class="grid2">
+      <div class="field"><label for="fb">Buy fee rate</label><div class="inp"><input id="fb" inputmode="decimal" value="0.1"><span class="sfx">%</span></div></div>
+      <div class="field"><label for="fs">Sell fee rate</label><div class="inp"><input id="fs" inputmode="decimal" value="0.1"><span class="sfx">%</span></div></div>
+    </div>
+    <details id="adv" class="adv">
+      <summary>Advanced fee options</summary>
+      <div class="a-only">
+        <div class="grid2">
+          <div class="field"><label for="buyCur">Buy fee paid in</label><select id="buyCur"><option value="quote">Quote (USDT)</option><option value="base">Coin (BTC)</option><option value="third">Other token (BNB…)</option></select></div>
+          <div class="field"><label for="sellCur">Sell fee paid in</label><select id="sellCur"><option value="quote">Quote (USDT)</option><option value="base">Coin (BTC)</option><option value="third">Other token (BNB…)</option></select></div>
+        </div>
+        <div class="field" id="buyThirdW" hidden><label for="buyFeeThird">Buy fee worth</label><div class="inp"><input id="buyFeeThird" inputmode="decimal" placeholder="Value in quote currency"><span class="sfx q-unit">USDT</span></div>
+          <p class="help">Enter what the token fee was worth. The app never guesses a rate.</p></div>
+        <div class="field" id="sellThirdW" hidden><label for="sellFeeThird">Sell fee worth</label><div class="inp"><input id="sellFeeThird" inputmode="decimal" placeholder="Value in quote currency"><span class="sfx q-unit">USDT</span></div></div>
+      </div>
+      <div class="b-only">
+        <p class="help flush">Fees from your order records. <em>Included</em> fees are already inside the amounts above and only feed the fee total. <em>Extra</em> fees, such as BNB paid separately, are added once. The sell fee rate above is only used to estimate break-even and target.</p>
+        <div class="grid2">
+          <div class="field"><label for="buyFeeIncl">Buy fee included</label><input id="buyFeeIncl" inputmode="decimal" placeholder="0"></div>
+          <div class="field"><label for="sellFeeIncl">Sell fee included</label><input id="sellFeeIncl" inputmode="decimal" placeholder="0"></div>
+          <div class="field"><label for="buyFeeExtra">Extra buy fee</label><input id="buyFeeExtra" inputmode="decimal" placeholder="0"></div>
+          <div class="field"><label for="sellFeeExtra">Extra sell fee</label><input id="sellFeeExtra" inputmode="decimal" placeholder="0"></div>
+        </div>
+      </div>
+    </details>
+  </section>
+
+  <section class="panel" aria-labelledby="h-exit">
+    <h2 id="h-exit">Selling and target</h2>
+    <div class="field a-only"><label for="ps">Selling price <span class="opt">optional</span></label><div class="inp"><input id="ps" inputmode="decimal" placeholder="Expected or actual"><span class="sfx q-unit">USDT</span></div></div>
+    <div class="grid2">
+      <div class="field"><label for="target">Profit target <span class="opt">optional</span></label><input id="target" inputmode="decimal" placeholder="2"></div>
+      <div class="field"><label for="tType">Target type</label><select id="tType"><option value="pct">% of total cost</option><option value="amt">Fixed amount</option></select></div>
+    </div>
+    <div class="actions"><button type="button" id="example" class="btn sec">Load example</button><button type="button" id="reset" class="btn sec">Reset</button></div>
+  </section>
+</div>
+
+<div class="area-out">
+  <section id="results" class="panel res" aria-labelledby="h-res" aria-live="polite">
+    <div class="res-head"><h2 id="h-res">Result</h2><span id="kind" class="chip"></span></div>
+    <div id="msg"></div>
+    <div id="result"></div>
+    <div class="actions" id="resActions" hidden>
+      <button type="button" id="copy" class="btn pri">Copy results</button>
+      <button type="button" id="save" class="btn sec">Save to history</button>
+    </div>
+    <p id="status" class="help" role="status"></p>
+  </section>
+
+  <details class="panel how">
+    <summary>How break-even is calculated</summary>
+    <p>Break-even is the sell price where what you receive after the sell fee equals everything you spent.</p>
+    <p class="formula">(buy cost + fees + extra costs) ÷ (coins you can sell × (1 − sell fee rate))</p>
+    <ul>
+      <li><strong>Fee in quote currency:</strong> added to your cost when buying, taken from proceeds when selling.</li>
+      <li><strong>Fee in coins, buying:</strong> you receive fewer coins, so you own quantity × (1 − rate). Your cost is unchanged.</li>
+      <li><strong>Fee in coins, selling:</strong> assumed to come out of the coins you sell, since you sell everything you hold. The result matches a quote-currency sell fee.</li>
+      <li><strong>Fee in another token:</strong> you enter its worth in quote currency. It is counted once.</li>
+      <li><strong>Finished trades:</strong> your real order amounts are used as entered. Fees marked included are never added again.</li>
+      <li><strong>Gross and net:</strong> gross is the price move only. Net is after all fees and costs. ROI is net ÷ total cost.</li>
+    </ul>
+    <p>Nothing is rounded during calculation, only for display. Estimates can differ from your exchange statement, which is the source of truth.</p>
+  </details>
+</div>
+</div>
+
+<section class="area-hist panel" aria-labelledby="h-hist">
+  <div class="res-head"><h2 id="h-hist">Saved trades</h2><span class="muted">Stored only in this browser</span></div>
+  <p id="histNote" class="help flush" hidden></p>
+  <p id="empty" class="empty">Nothing saved yet. Calculate a trade, then choose Save to history.</p>
+  <ul id="hist" class="hist"></ul>
+  <div class="actions" id="histActions"><button type="button" id="csv" class="btn sec">Export CSV</button><button type="button" id="clear" class="btn sec danger">Clear all</button></div>
+</section>
+</main>
+
+<footer class="wrap foot">Educational tool, not financial advice. It places no orders and never asks for API keys.</footer>
+
+<div id="dock" class="dock" hidden><div><span class="dock-l">Break-even sell price</span><strong id="dockV"></strong></div><span id="dockS" class="pill"></span></div>
+
+<dialog id="dlg" aria-labelledby="dlgT">
+  <h2 id="dlgT">Delete all saved trades?</h2>
+  <p>This removes every record from this browser. It cannot be undone.</p>
+  <div class="actions"><button type="button" id="dNo" class="btn sec">Cancel</button><button type="button" id="dYes" class="btn dng">Delete all</button></div>
+</dialog>
+
+<script>
+/* Break-even calculation engine. No DOM, no rounding (round only when displaying). */
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.BE = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  // null = missing, NaN = not a number, otherwise a finite number. Accepts "1,5" and "1e-5".
+  function parse(v) {
+    if (v === null || v === undefined) return null;
+    if (typeof v === 'number') return v;
+    const s = String(v).trim().replace(',', '.');
+    if (s === '') return null;
+    return /^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i.test(s) ? Number(s) : NaN;
+  }
+
+  // Reads one field, pushing a readable message into errs when it is invalid.
+  function read(errs, v, label, o) {
+    o = o || {};
+    const x = parse(v);
+    if (x === null) {
+      if (o.req) errs.push(label + ' is required.');
+      return o.def === undefined ? null : o.def;
+    }
+    if (!Number.isFinite(x)) { errs.push(label + ' must be a number.'); return null; }
+    if (o.gt !== undefined && !(x > o.gt)) errs.push(label + ' must be greater than ' + o.gt + '.');
+    if (o.gte !== undefined && !(x >= o.gte)) errs.push(label + ' cannot be negative.');
+    if (o.lt !== undefined && !(x < o.lt)) errs.push(label + ' must be below ' + o.lt + '%.');
+    return x;
+  }
+
+  /* Every case reduces to:  net(P) = A*P - K
+     A = sellable quantity * (1 - sell fee rate charged on proceeds)
+     K = total buy-side cost + any fixed sell fee (third-token fee, in quote currency)
+     break-even: A*P = K  =>  P = K / A */
+  function core(totalCost, qty, sellRate, sellFixed, targetType, targetValue) {
+    const A = qty * (1 - sellRate);
+    const K = totalCost + sellFixed;
+    let targetPrice = null;
+    if (targetValue !== null && targetValue !== undefined) {
+      const wanted = targetType === 'amt' ? targetValue : (targetValue / 100) * totalCost;
+      targetPrice = (K + wanted) / A;
+    }
+    return { A: A, K: K, breakEven: K / A, targetPrice: targetPrice };
+  }
+
+  // Above / at / below break-even, decided from the unrounded net result (tolerance only absorbs float noise).
+  function statusOf(r) {
+    if (r.net === undefined) return null;
+    const tol = 1e-9 * Math.max(1, r.totalCost);
+    return Math.abs(r.net) <= tol ? 'at' : r.net > 0 ? 'above' : 'below';
+  }
+
+  /* Mode A: estimate before trading.
+     qty = quantity ORDERED (before any fee taken in base currency).
+     Buy fee in quote  -> added to cost.
+     Buy fee in base   -> fee units are withheld, so you only own qty*(1-fb); cost stays qty*price.
+     Buy fee in third  -> user supplies its quote-currency value (never guessed); added to cost.
+     Sell fee in quote or base -> assumed taken from the amount sold (you sell everything you hold),
+        so proceeds = qtyOwned*price*(1-fs). Both give the same number.
+     Sell fee in third -> user supplies quote value; subtracted from proceeds. */
+  function estimate(i) {
+    const e = [], w = [];
+    const pb = read(e, i.pb, 'Buy price', { req: 1, gt: 0 });
+    const qty = read(e, i.qty, 'Quantity', { req: 1, gt: 0 });
+    const fb = read(e, i.fb, 'Buy fee rate', { def: 0, gte: 0, lt: 100 });
+    const fs = read(e, i.fs, 'Sell fee rate', { def: 0, gte: 0, lt: 100 });
+    const C = read(e, i.extra, 'Additional costs', { def: 0, gte: 0 });
+    const bc = i.buyCur || 'quote', sc = i.sellCur || 'quote';
+    const bt = bc === 'third' ? read(e, i.buyFeeThird, 'Buy fee value in quote currency', { req: 1, gte: 0 }) : 0;
+    const st = sc === 'third' ? read(e, i.sellFeeThird, 'Sell fee value in quote currency', { req: 1, gte: 0 }) : 0;
+    const ps = read(e, i.ps, 'Selling price', { gt: 0 });
+    const tv = read(e, i.target, 'Profit target', { gte: 0 });
+    if (e.length) return { ok: false, errors: e };
+
+    const qtyAvail = bc === 'base' ? qty * (1 - fb / 100) : qty;
+    const buyFeeQuote = bc === 'quote' ? qty * pb * fb / 100 : bc === 'third' ? bt : 0;
+    const totalCost = qty * pb + buyFeeQuote + C;
+    const sellRate = sc === 'third' ? 0 : fs / 100;
+    const sellFixed = sc === 'third' ? st : 0;
+    const c = core(totalCost, qtyAvail, sellRate, sellFixed, i.targetType, tv);
+
+    // Fees are valued in quote currency. A base-currency buy fee is valued at the exit price
+    // (that is what the missing units would have fetched), so gross - fees - extra = net exactly.
+    const ref = ps !== null ? ps : c.breakEven;
+    const buyFee = bc === 'base' ? qty * fb / 100 * ref : buyFeeQuote;
+    const sellFee = qtyAvail * sellRate * ref + sellFixed;
+    const r = { ok: true, mode: 'estimate', warnings: w, qty: qty, buyPrice: pb, qtyAvail: qtyAvail,
+      totalCost: totalCost, breakEven: c.breakEven, targetPrice: c.targetPrice, ps: ps,
+      buyFee: buyFee, sellFee: sellFee, totalFees: buyFee + sellFee, extra: C };
+    if (ps !== null) {
+      r.proceeds = c.A * ps - sellFixed;
+      r.gross = qty * (ps - pb);
+      r.net = r.proceeds - totalCost;
+      r.roi = r.net / totalCost * 100;
+    }
+    if (buyFee + sellFee > qty * pb) w.push('Fees are larger than the value of the trade. Check the fee rates and amounts.');
+    else if (fb > 1 || fs > 1) w.push('A fee rate above 1% is unusual for Spot trading. Check it.');
+    r.status = statusOf(r);
+    return r;
+  }
+
+  /* Mode B: completed trades, from exchange records. Actual amounts are used as entered.
+     quoteSpent  = total quote the buy cost you, INCLUDING a quote-currency fee if one was charged.
+     qtyReceived = base units you actually got (after any base-currency fee).
+     proceeds    = quote you actually received from selling (after any fee taken from it).
+     "included" fees are for display only: they are already inside the amounts above.
+     "extra" fees (e.g. paid in BNB) are NOT inside the amounts, so they are added once.
+     The sell fee rate is only used to estimate break-even / target for the position. */
+  function actual(i) {
+    const e = [], w = [];
+    const spent = read(e, i.spent, 'Quote spent on buying', { req: 1, gt: 0 });
+    const recv = read(e, i.recv, 'Quantity received', { req: 1, gt: 0 });
+    let sold = read(e, i.sold, 'Quantity sold', { gt: 0 });
+    const proceeds = read(e, i.proceeds, 'Sell proceeds received', { gte: 0 });
+    const bfi = read(e, i.buyFeeIncl, 'Buy fee already included', { def: 0, gte: 0 });
+    const sfi = read(e, i.sellFeeIncl, 'Sell fee already included', { def: 0, gte: 0 });
+    const bfe = read(e, i.buyFeeExtra, 'Extra buy fee', { def: 0, gte: 0 });
+    const sfe = read(e, i.sellFeeExtra, 'Extra sell fee', { def: 0, gte: 0 });
+    const C = read(e, i.extra, 'Additional costs', { def: 0, gte: 0 });
+    const fs = read(e, i.fs, 'Sell fee rate', { def: 0, gte: 0, lt: 100 });
+    const tv = read(e, i.target, 'Profit target', { gte: 0 });
+    if (!e.length) {
+      if (sold !== null && sold > recv) e.push('Quantity sold cannot exceed quantity received.');
+      if (bfi > spent) e.push('Buy fee already included cannot exceed the quote spent.');
+      if (sold !== null && proceeds === null) e.push('Enter the sell proceeds you received.');
+    }
+    if (e.length) return { ok: false, errors: e };
+    if (proceeds !== null && sold === null) sold = recv;
+
+    const totalCost = spent + bfe + C;
+    const c = core(totalCost, recv, fs / 100, 0, i.targetType, tv);
+    const r = { ok: true, mode: 'actual', warnings: w, qty: recv, buyPrice: spent / recv, qtyAvail: recv,
+      totalCost: totalCost, breakEven: c.breakEven, targetPrice: c.targetPrice, ps: null, extra: C,
+      buyFee: bfi + bfe, sellFee: 0 };
+    if (proceeds !== null) {
+      const ratio = sold / recv, costSold = totalCost * ratio;
+      r.sold = sold; r.remaining = recv - sold; r.ps = proceeds / sold;
+      r.net = proceeds - sfe - costSold;
+      r.roi = r.net / costSold * 100;
+      r.gross = proceeds + sfi - (spent - bfi) * ratio;
+      r.buyFee = (bfi + bfe) * ratio;
+      r.sellFee = sfi + sfe;
+      r.costSold = costSold;
+    }
+    r.totalFees = r.buyFee + r.sellFee;
+    if (r.remaining > 0) w.push('Only part of the position was sold. Profit uses the matching share of your cost; break-even is for the whole position.');
+    r.status = statusOf(r);
+    return r;
+  }
+
+  return { parse: parse, estimate: estimate, actual: actual };
+});
+</script>
+<script>
+/* UI layer. All maths lives in calc.js. */
+(function () {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const val = id => $(id).value;
+  const KEY_H = 'cbe.history.v1', KEY_S = 'cbe.settings.v1';
+  const SETTING_IDS = ['fb', 'fs', 'buyCur', 'sellCur'];
+  const DEFAULTS = { base: 'BTC', quote: 'USDT', fb: '0.1', fs: '0.1', buyCur: 'quote', sellCur: 'quote', tType: 'pct' };
+  const TEXT_IDS = ['pb', 'qty', 'spent', 'recv', 'sold', 'proceeds', 'buyFeeThird', 'sellFeeThird', 'extra', 'buyFeeIncl', 'sellFeeIncl', 'buyFeeExtra', 'sellFeeExtra', 'ps', 'target'];
+  const STATE_TEXT = { above: 'Above break-even', at: 'At break-even', below: 'Below break-even' };
+
+  // ---- storage with graceful fallback ----
+  const store = (function () { try { const k = '__t'; localStorage.setItem(k, k); localStorage.removeItem(k); return localStorage; } catch (e) { return null; } })();
+  let memHist = [], last = null;
+  const load = (k, d) => { try { return store ? JSON.parse(store.getItem(k)) || d : d; } catch (e) { return d; } };
+  const save = (k, v) => { try { if (store) store.setItem(k, JSON.stringify(v)); } catch (e) { /* ignore */ } };
+  const getHist = () => (store ? load(KEY_H, []) : memHist);
+  const setHist = h => { if (store) save(KEY_H, h); else memHist = h; };
+
+  // ---- formatting (display only) ----
+  const nf = (n, a, b) => n.toLocaleString(undefined, { minimumFractionDigits: a, maximumFractionDigits: b });
+  const price = n => { const a = Math.abs(n); return nf(n, 2, a >= 1000 ? 2 : a >= 1 ? 4 : 8); },  money = n => nf(n, 2, 4), qtyf = n => nf(n, 0, 8);
+  const sgn = n => (Math.abs(n) >= 0.00005 ? (n > 0 ? '+' : '−') : '') + money(Math.abs(n));
+  const pct = n => (Math.abs(n) >= 0.005 ? (n > 0 ? '+' : '−') : '') + nf(Math.abs(n), 2, 2) + '%';
+  const mode = () => document.body.dataset.mode;
+  const quote = () => (val('quote').trim() || 'quote').toUpperCase();
+  const base = () => (val('base').trim() || 'coin').toUpperCase();
+  function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
+
+  function labels() {
+    document.querySelectorAll('.q-unit').forEach(e => e.textContent = quote());
+    document.querySelectorAll('.b-unit').forEach(e => e.textContent = base());
+    ['buyCur', 'sellCur'].forEach(id => { const o = $(id).options; o[0].text = 'Quote (' + quote() + ')'; o[1].text = 'Coin (' + base() + ')'; });
+    $('buyThirdW').hidden = val('buyCur') !== 'third';
+    $('sellThirdW').hidden = val('sellCur') !== 'third';
+  }
+
+  function inputs() {
+    const c = { fb: val('fb'), fs: val('fs'), extra: val('extra'), targetType: val('tType'), target: val('target') };
+    if (mode() === 'estimate') return Object.assign(c, { pb: val('pb'), qty: val('qty'), buyCur: val('buyCur'), sellCur: val('sellCur'),
+      buyFeeThird: val('buyFeeThird'), sellFeeThird: val('sellFeeThird'), ps: val('ps') });
+    return Object.assign(c, { spent: val('spent'), recv: val('recv'), sold: val('sold'), proceeds: val('proceeds'),
+      buyFeeIncl: val('buyFeeIncl'), sellFeeIncl: val('sellFeeIncl'), buyFeeExtra: val('buyFeeExtra'), sellFeeExtra: val('sellFeeExtra') });
+  }
+
+  function msg(kind, lines) {
+    const d = el('div', 'msg ' + kind);
+    if (lines.length === 1) d.textContent = lines[0];
+    else { const ul = el('ul'); lines.forEach(l => ul.appendChild(el('li', '', l))); d.appendChild(ul); }
+    return d;
+  }
+  function row(dl, label, value, unit, o) {
+    o = o || {};
+    const r = el('div', 'row ' + (o.cls || '')), dt = el('dt', '', label), dd = el('dd', '', value);
+    if (o.hint) dt.appendChild(el('small', '', o.hint));
+    if (unit) dd.appendChild(el('small', '', unit));
+    r.appendChild(dt); r.appendChild(dd); dl.appendChild(r);
+  }
+
+  function render() {
+    labels();
+    const A = mode() === 'estimate', q = quote(), b = base();
+    const out = $('result'), m = $('msg');
+    out.textContent = ''; m.textContent = ''; $('status').textContent = ''; last = null;
+    $('kind').textContent = A ? 'Estimate' : 'From your records';
+    const none = () => { $('resActions').hidden = true; $('dock').hidden = true; };
+    const blank = A ? !val('pb').trim() && !val('qty').trim() : !val('spent').trim() && !val('recv').trim();
+    if (blank) { out.appendChild(el('p', 'empty', A ? 'Enter a buy price and quantity to see your break-even sell price.' : 'Enter the quote you spent and the quantity you received.')); none(); return; }
+    const r = A ? BE.estimate(inputs()) : BE.actual(inputs());
+    if (!r.ok) { m.appendChild(msg('err', r.errors)); none(); return; }
+    if (r.warnings.length) m.appendChild(msg('warn', r.warnings));
+    last = r; $('resActions').hidden = false;
+
+    const over = (r.breakEven / r.buyPrice - 1) * 100;
+    const hero = el('div', 'hero'), big = el('div', 'big', price(r.breakEven));
+    big.appendChild(el('span', '', q));
+    const stateText = r.status ? STATE_TEXT[r.status] : (A ? 'Add a selling price to compare' : 'Add sell proceeds to see the result');
+    hero.appendChild(el('div', 'lbl', 'Break-even sell price')); hero.appendChild(big);
+    hero.appendChild(el('span', 'state ' + (r.status || ''), stateText));
+    hero.appendChild(el('div', 'note', 'Fees and costs add ' + nf(over, 2, 2) + '% to your buy price' + (A ? '.' : '. Estimated for the whole position.')));
+    out.appendChild(hero);
+
+    const dl = el('dl', 'rows'), cls = r.status === 'above' ? 'above' : r.status === 'below' ? 'below' : '';
+    if (r.net !== undefined) {
+      row(dl, A ? 'Net profit or loss' : 'Net profit or loss (realized)', sgn(r.net), q, { cls: cls });
+      row(dl, 'ROI', pct(r.roi), '', { cls: cls, hint: 'Net ÷ total cost' });
+    }
+    if (r.targetPrice !== null && r.targetPrice !== undefined)
+      row(dl, 'Sell price for your target', price(r.targetPrice), q, { hint: val('tType') === 'pct' ? val('target') + '% of total cost' : 'Fixed ' + val('target') + ' ' + q });
+    row(dl, A ? 'Estimated total cost' : 'Total cost', money(r.totalCost), q);
+    row(dl, 'Net quantity available', qtyf(r.qtyAvail), b, r.remaining > 0 ? { hint: qtyf(r.remaining) + ' ' + b + ' still unsold' } : {});
+    row(dl, 'Total fees', money(r.totalFees), q, { hint: r.net === undefined ? 'Valued at the break-even price' : 'Buy ' + money(r.buyFee) + ' + sell ' + money(r.sellFee) });
+    if (r.net !== undefined) row(dl, 'Gross profit or loss', sgn(r.gross), q, { hint: 'Price move only, before fees' });
+    out.appendChild(dl);
+
+    $('dockV').textContent = price(r.breakEven) + ' ' + q;
+    $('dockS').textContent = r.status ? STATE_TEXT[r.status] : 'Estimate';
+    $('dock').hidden = false; syncDock();
+  }
+
+  // Phone-only bar that keeps the main result in view while editing; hidden once the result panel is visible.
+  let resVisible = false;
+  function syncDock() { $('dock').hidden = !last || resVisible; }
+  if ('IntersectionObserver' in window) new IntersectionObserver(es => { resVisible = es[0].isIntersecting; syncDock(); }, { threshold: 0.15 }).observe($('results'));
+
+  // ---- copy ----
+  function summary() {
+    if (!last) return '';
+    const r = last, q = quote(), L = [];
+    L.push('Break-even calculator (' + (r.mode === 'estimate' ? 'estimate' : 'from records') + ') ' + base() + '/' + q);
+    L.push('Break-even sell price: ' + price(r.breakEven) + ' ' + q);
+    if (r.status) L.push('Status: ' + STATE_TEXT[r.status]);
+    if (r.targetPrice !== null) L.push('Target sell price: ' + price(r.targetPrice) + ' ' + q);
+    L.push('Total cost: ' + money(r.totalCost) + ' ' + q, 'Net quantity available: ' + qtyf(r.qtyAvail) + ' ' + base());
+    if (r.net !== undefined) L.push('Gross: ' + sgn(r.gross) + ' ' + q, 'Net after fees: ' + sgn(r.net) + ' ' + q, 'ROI: ' + pct(r.roi));
+    L.push('Total fees: ' + money(r.totalFees) + ' ' + q);
+    return L.join('\n');
+  }
+  function say(t) { $('status').textContent = t; }
+  function copy() {
+    const t = summary();
+    const fallback = () => { const a = el('textarea'); a.value = t; a.style.position = 'fixed'; document.body.appendChild(a); a.select(); let ok = false; try { ok = document.execCommand('copy'); } catch (e) { /* ignore */ } a.remove(); say(ok ? 'Copied.' : 'Copy failed. Select the result and copy it manually.'); };
+    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(t).then(() => say('Copied.'), fallback); else fallback();
+  }
+
+  // ---- history ----
+  function saveTrade() {
+    if (!last) return;
+    const r = last, h = getHist();
+    h.unshift({ id: Date.now() + '-' + Math.random().toString(36).slice(2, 7), at: new Date().toISOString(), pair: base() + '/' + quote(), mode: r.mode,
+      pb: r.buyPrice, qty: r.qty, be: r.breakEven, ps: r.ps, net: r.net === undefined ? null : r.net, roi: r.roi === undefined ? null : r.roi });
+    setHist(h.slice(0, 500)); renderHist(); say(store ? 'Saved to history.' : 'Saved for this visit only. Browser storage is unavailable.');
+  }
+  function renderHist() {
+    const h = getHist(), ul = $('hist'); ul.textContent = '';
+    $('empty').hidden = h.length > 0; $('histActions').hidden = h.length === 0;
+    h.forEach(x => {
+      const li = el('li', 'h-item'), main = el('div', 'h-main'), res = el('div', 'h-res');
+      main.appendChild(el('strong', '', x.pair));
+      main.appendChild(el('span', '', new Date(x.at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })));
+      main.appendChild(el('div', '', 'Break-even ' + price(x.be) + (x.ps ? ' · Sell ' + price(x.ps) : '')));
+      const nums = el('div', x.net > 0 ? 'good' : x.net < 0 ? 'bad' : '');
+      nums.textContent = x.net === null ? 'No sale' : sgn(x.net);
+      if (x.roi !== null) nums.appendChild(el('small', '', pct(x.roi)));
+      const del = el('button', 'x', 'Delete'); del.type = 'button'; del.setAttribute('aria-label', 'Delete ' + x.pair + ' record');
+      del.onclick = () => { setHist(getHist().filter(y => y.id !== x.id)); renderHist(); };
+      res.appendChild(nums); res.appendChild(del); li.appendChild(main); li.appendChild(res); ul.appendChild(li);
+    });
+    const note = $('histNote'); note.hidden = !!store;
+    if (!store) note.textContent = 'Browser storage is disabled, so history lasts only until you close this page.';
+  }
+  const csvCell = v => { let s = v === null || v === undefined ? '' : String(v); if (/^[=+\-@\t\r]/.test(s) && isNaN(Number(s))) s = "'" + s; return '"' + s.replace(/"/g, '""') + '"'; };
+  function exportCsv() {
+    const h = getHist(); if (!h.length) return;
+    const head = ['date_time', 'pair', 'mode', 'buy_price', 'quantity', 'break_even', 'sell_price', 'net_pnl', 'roi_percent'];
+    const rows = [head.join(',')].concat(h.map(x => [x.at, x.pair, x.mode, x.pb, x.qty, x.be, x.ps, x.net, x.roi].map(csvCell).join(',')));
+    const a = el('a'); a.href = URL.createObjectURL(new Blob(['\ufeff' + rows.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+    a.download = 'break-even-history.csv'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+  function confirmClear() {
+    const dlg = $('dlg');
+    if (typeof dlg.showModal !== 'function') { if (confirm('Delete all saved trades? This cannot be undone.')) { setHist([]); renderHist(); } return; }
+    dlg.showModal(); $('dNo').focus();
+  }
+
+  // ---- controls ----
+  function setMode(m) {
+    document.body.dataset.mode = m;
+    $('modeA').setAttribute('aria-pressed', String(m === 'estimate')); $('modeB').setAttribute('aria-pressed', String(m === 'actual'));
+    if (m === 'actual') $('adv').open = true;
+    render();
+  }
+  const fill = o => Object.keys(o).forEach(k => { $(k).value = o[k]; });
+  function reset() { TEXT_IDS.forEach(id => { $(id).value = ''; }); fill(DEFAULTS); save(KEY_S, null); $('adv').open = false; render(); }
+  function example() { TEXT_IDS.forEach(id => { $(id).value = ''; }); fill(Object.assign({}, DEFAULTS, { pb: '60000', qty: '0.01', ps: '61000', target: '2' })); setMode('estimate'); }
+
+  function init() {
+    const s = load(KEY_S, null); if (s) SETTING_IDS.forEach(k => { if (s[k] !== undefined) $(k).value = s[k]; });
+    document.querySelectorAll('input,select').forEach(e => e.addEventListener('input', () => {
+      if (SETTING_IDS.indexOf(e.id) >= 0) { const o = {}; SETTING_IDS.forEach(k => { o[k] = val(k); }); save(KEY_S, o); }
+      render();
+    }));
+    $('modeA').onclick = () => setMode('estimate'); $('modeB').onclick = () => setMode('actual');
+    $('reset').onclick = reset; $('example').onclick = example; $('copy').onclick = copy; $('save').onclick = saveTrade; $('csv').onclick = exportCsv;
+    $('settingsBtn').onclick = () => { $('adv').open = true; $('fb').scrollIntoView({ block: 'center' }); $('fb').focus(); };
+    $('clear').onclick = confirmClear; $('dNo').onclick = () => $('dlg').close();
+    $('dYes').onclick = () => { setHist([]); renderHist(); $('dlg').close(); };
+    $('dock').onclick = () => $('results').scrollIntoView({ block: 'start' });
+    render(); renderHist();
+  }
+  init();
+})();
+</script>
+</body>
+</html>
